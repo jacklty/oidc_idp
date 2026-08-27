@@ -1,0 +1,41 @@
+services:
+  idp:
+    image: public.ecr.aws/docker/library/python:3.13-slim
+    container_name: oidc-idp
+    working_dir: /app
+    volumes:
+      - /opt/oidc_idp:/app
+    command: >
+      python3 idp.py
+      --port ${PORT:-8765}
+      --secret ${SECRET:-labsecret}
+      --key-dir /app/keys
+      ${ISSUER:+--issuer ${ISSUER}}
+    environment:
+      - PORT=${PORT:-8765}
+      - SECRET=${SECRET:-labsecret}
+      - ISSUER=${ISSUER:-}
+    ports:
+      - "${PORT:-8765}:${PORT:-8765}"
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: oidc-tunnel
+    network_mode: "service:idp"
+    depends_on:
+      - idp
+    volumes:
+      - /opt/oidc_idp:/opt/oidc_idp
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - "--token-file"
+      - /opt/oidc_idp/keys/oidc-tunnel.token
+    restart: unless-stopped
+
+networks: {}
+
+volumes:
+  keys:
