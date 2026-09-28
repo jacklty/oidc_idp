@@ -20,7 +20,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import jwt as jwtlib
 
-KID = "idp-rsa-2048-1"
 TAGS_NS = "https://aws.amazon.com/tags"
 SOURCE_IDENTITY_NS = "https://aws.amazon.com/source_identity"
 
@@ -35,7 +34,6 @@ def main():
     ap.add_argument("--aud", default="sts.amazonaws.com")
     ap.add_argument("--sub", default="lab-user")
     ap.add_argument("--ttl", type=int, default=3600, help="token lifetime in seconds")
-    ap.add_argument("--kid", default=KID)
     ap.add_argument("--tag", action="append", default=[], metavar="KEY=VALUE",
                     help="session tag claim (repeatable)")
     ap.add_argument("--transitive", default="",
@@ -73,7 +71,9 @@ def main():
     if args.source_identity is not None:
         payload[SOURCE_IDENTITY_NS] = args.source_identity
 
-    token = jwtlib.sign_jwt({"alg": "RS256", "typ": "JWT", "kid": args.kid}, payload, args.key)
+    public_key = Path(args.key).with_name("public.pem")
+    kid = jwtlib.pem_to_jwk(public_key)["kid"]
+    token = jwtlib.sign_jwt({"alg": "RS256", "typ": "JWT", "kid": kid}, payload, args.key)
     print(token)
     if args.print_payload:
         print(json.dumps(payload, indent=2), file=sys.stderr)

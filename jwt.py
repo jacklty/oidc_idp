@@ -7,6 +7,7 @@ public key as a JWK (the shape served from /.well-known/jwks.json).
 """
 
 import base64
+import hashlib
 import json
 import re
 import subprocess
@@ -76,8 +77,8 @@ def decode_jwt(token: str) -> Tuple[dict, dict]:
     return header, payload
 
 
-def pem_to_jwk(public_key, kid: str) -> dict:
-    """Convert an RSA public PEM to a JWK (n, e) as served from jwks_uri."""
+def pem_to_jwk(public_key) -> dict:
+    """Convert an RSA public PEM to a JWK with a derived key identifier."""
     out = subprocess.run(
         ["openssl", "rsa", "-pubin", "-in", str(public_key), "-text", "-noout"],
         capture_output=True, text=True, check=True,
@@ -87,14 +88,22 @@ def pem_to_jwk(public_key, kid: str) -> dict:
     if nbytes[0] == 0:  # openssl emits a leading 0x00 sign byte; strip for JWK
         nbytes = nbytes[1:]
     ebytes = exp.to_bytes((exp.bit_length() + 7) // 8, "big")
-    return {
+    jwk = {
         "kty": "RSA",
         "use": "sig",
         "alg": "RS256",
-        "kid": kid,
         "n": b64url(nbytes).rstrip("="),
         "e": b64url(ebytes).rstrip("="),
     }
+    jwk["kid"] = jwk_thumbprint(jwk)
+    return jwk
+
+
+def jwk_thumbprint(jwk: dict) -> str:
+    """Return the RFC 7638 thumbprint for an RSA public JWK."""
+    members = {key: jwk[key] for key in ("e", "kty", "n")}
+    canonical = json.dumps(members, separators=(",", ":"), sort_keys=True)
+    return b64url(hashlib.sha256(canonical.encode("utf-8")).digest())
 
 
 def _parse_rsa_text(out: str) -> Tuple[str, int]:

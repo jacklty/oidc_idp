@@ -22,9 +22,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import jwt as jwtlib
 
-KID = "idp-rsa-2048-1"
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--port", type=int, default=8765)
@@ -42,8 +39,10 @@ def main():
     key_dir = Path(args.key_dir)
     private_key = key_dir / "private.pem"
     public_key = key_dir / "public.pem"
-    if not private_key.exists():
-        sys.exit(f"missing {private_key} -- run ./gen_keys.sh first")
+    if not private_key.exists() or not public_key.exists():
+        sys.exit(f"missing {private_key} or {public_key} -- run ./gen_keys.sh first")
+    jwk = jwtlib.pem_to_jwk(public_key)
+    kid = jwk["kid"]
 
     issuer = args.issuer or f"http://localhost:{args.port}"
 
@@ -81,7 +80,6 @@ def main():
                     "id_token_signing_alg_values_supported": ["RS256"],
                 })
             elif path == "/.well-known/jwks.json":
-                jwk = jwtlib.pem_to_jwk(public_key, KID)
                 print(f"[idp] {time.strftime('%H:%M:%S')} JWKS fetch (kid={jwk['kid']})",
                       file=sys.stderr, flush=True)
                 self._send(200, {"keys": [jwk]})
@@ -107,7 +105,7 @@ def main():
                 "jti": uuid.uuid4().hex,
             }
             payload.update(claims)
-            token = jwtlib.sign_jwt({"alg": "RS256", "typ": "JWT", "kid": KID}, payload, private_key)
+            token = jwtlib.sign_jwt({"alg": "RS256", "typ": "JWT", "kid": kid}, payload, private_key)
             self._send(200, {"token": token, "payload": payload})
 
     print(f"[idp] issuer   = {issuer}", file=sys.stderr)

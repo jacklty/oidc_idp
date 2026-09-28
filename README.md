@@ -10,12 +10,17 @@ have real AWS STS verify and honor them.
 | File | Purpose |
 |---|---|
 | `gen_keys.sh` | generate RSA-2048 signing keypair into `keys/` (gitignored) |
-| `jwt.py` | RS256 sign/verify (openssl-backed) + PEM→JWK conversion |
+| `jwt.py` | RS256 sign/verify (openssl-backed) + PEM→JWK conversion and key thumbprints |
 | `idp.py` | OIDC server: discovery, JWKS, guarded `/token` endpoint |
 | `mint.py` | CLI to forge a JWT with custom claims and session tags |
 | `exchange.sh` | mint → `aws sts assume-role-with-web-identity` |
 | `tunnel.sh` | start `idp.py` behind a Cloudflare quick tunnel, auto-set `issuer` |
 | `keys/` | `private.pem` (sign) + `public.pem` (served as JWKS) |
+
+The JWKS `kid` and JWT header `kid` are derived from `keys/public.pem` using its
+RFC 7638 JWK thumbprint. The JWT is signed with the matching `keys/private.pem`,
+so the two files must remain a keypair. The `kid` remains stable until the key
+pair changes.
 
 ## Quick start (offline)
 

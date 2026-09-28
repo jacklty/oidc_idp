@@ -48,7 +48,18 @@ if [[ "${DEBUG:-0}" == "1" ]]; then
 fi
 
 TOKEN=$(./mint.py "${MINT_ARGS[@]}")
-echo $TOKEN
+if [[ "${DEBUG:-0}" == "1" ]]; then
+  TOKEN="$TOKEN" python3 - <<'PY'
+import base64
+import json
+import os
+
+header = os.environ["TOKEN"].split(".", 1)[0]
+header += "=" * (-len(header) % 4)
+print("JWT header:", json.dumps(json.loads(base64.urlsafe_b64decode(header)), sort_keys=True), file=os.sys.stderr)
+PY
+fi
+printf '%s\n' "$TOKEN"
 
 STS_JSON=$(aws sts assume-role-with-web-identity \
   --role-arn "$ROLE_ARN" \
